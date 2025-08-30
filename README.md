@@ -8,7 +8,8 @@ Une web-app minimaliste est également fournie pour démarrer le consentement, l
 - Python 3.10+
 - Variables d'environnement:
   - ENABLE_APP_ID : 0472cd59-ae3d-4e53-8518-37afdbc149c3
-  - ENABLE_PRIVATE_KEY_PATH : chemin complet vers votre fichier clé RSA privée au format PEM (ex: /Users/antoinedelfosse/Documents/enable_private.pem)
+  - ENABLE_PRIVATE_KEY_PATH : chemin complet vers votre fichier clé RSA privée au format PEM (ex: `/Users/xxxx/enable_private.pem`)
+    - ou bien ENABLE_PRIVATE_KEY : contenu PEM directement (collez la clé, commencant par `-----BEGIN ...`)
   - (optionnel) ENABLE_API_BASE : défaut https://api.enablebanking.com
 
 ## Installation
@@ -52,7 +53,9 @@ Notes:
 - La web-app stocke `session_id` et `accounts` dans la session Flask côté serveur. Configurez `WEB_SECRET_KEY` pour un secret persistant.
 
 ## Dépannage rapide
-- Vérifiez les variables d'environnement: `ENABLE_APP_ID`, `ENABLE_PRIVATE_KEY_PATH`, et l'accessibilité du fichier PEM.
+- Erreur "No such file or directory ... .pem":
+  - Corrigez `ENABLE_PRIVATE_KEY_PATH` vers le bon chemin absolu, ou utilisez `ENABLE_PRIVATE_KEY` avec le contenu PEM.
+- Vérifiez les variables d'environnement: `ENABLE_APP_ID`, `ENABLE_PRIVATE_KEY_PATH`/`ENABLE_PRIVATE_KEY`, et l'accessibilité du fichier PEM.
 - Assurez-vous d'avoir effectué le parcours de consentement (`auth-url` puis `exchange-code`).
 - Listez les comptes: `python enable_budget_cli.py list-accounts`
 - Définissez un compte par défaut (facultatif): `python enable_budget_cli.py set-default-account --account-uid "<uid>"`

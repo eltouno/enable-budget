@@ -32,6 +32,7 @@ import requests
 
 APP_ID = os.environ.get("ENABLE_APP_ID")  # <Application ID> (UUID) -> kid
 PRIVATE_KEY_PATH = os.environ.get("ENABLE_PRIVATE_KEY_PATH")  # chemin vers .pem (fichier)
+PRIVATE_KEY_INLINE = os.environ.get("ENABLE_PRIVATE_KEY")  # contenu PEM direct (optionnel)
 API_BASE = os.environ.get("ENABLE_API_BASE", "https://api.enablebanking.com").rstrip("/")
 
 LOCAL_STATE = ".enable_budget_local.json"  # stocke accounts après /sessions
@@ -44,8 +45,14 @@ def _die(msg: str, code: int = 1) -> None:
 
 
 def _load_private_key() -> str:
+    # 1) Autoriser le contenu PEM directement via ENABLE_PRIVATE_KEY
+    if PRIVATE_KEY_INLINE:
+        return PRIVATE_KEY_INLINE
+    # 2) Sinon lire depuis le chemin de fichier ENABLE_PRIVATE_KEY_PATH
     if not PRIVATE_KEY_PATH:
-        _die("Variable d'env ENABLE_PRIVATE_KEY_PATH manquante.")
+        _die("Clé privée manquante: définissez ENABLE_PRIVATE_KEY (contenu PEM) ou ENABLE_PRIVATE_KEY_PATH (chemin fichier).")
+    if not os.path.exists(PRIVATE_KEY_PATH):
+        _die(f"Fichier PEM introuvable: {PRIVATE_KEY_PATH}")
     try:
         with open(PRIVATE_KEY_PATH, "r", encoding="utf-8") as f:
             return f.read()

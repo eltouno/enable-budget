@@ -16,6 +16,7 @@ import argparse
 
 APP_ID = os.environ.get("ENABLE_APP_ID")
 PRIVATE_KEY_PATH = os.environ.get("ENABLE_PRIVATE_KEY_PATH")
+PRIVATE_KEY_INLINE = os.environ.get("ENABLE_PRIVATE_KEY")  # contenu PEM direct (optionnel)
 API_BASE = os.environ.get("ENABLE_API_BASE", "https://api.enablebanking.com").rstrip("/")
 
 
@@ -28,10 +29,19 @@ def _audience_from_api_base() -> str:
 
 
 def _load_private_key() -> str:
+    # 1) Autoriser le contenu PEM directement via ENABLE_PRIVATE_KEY
+    if PRIVATE_KEY_INLINE:
+        return PRIVATE_KEY_INLINE
+    # 2) Sinon lire depuis le chemin de fichier ENABLE_PRIVATE_KEY_PATH
     if not PRIVATE_KEY_PATH:
-        raise RuntimeError("Variable d'env ENABLE_PRIVATE_KEY_PATH manquante")
-    with open(PRIVATE_KEY_PATH, "r", encoding="utf-8") as f:
-        return f.read()
+        raise RuntimeError("Clé privée manquante: définissez ENABLE_PRIVATE_KEY (contenu PEM) ou ENABLE_PRIVATE_KEY_PATH (chemin fichier)")
+    if not os.path.exists(PRIVATE_KEY_PATH):
+        raise RuntimeError(f"Fichier PEM introuvable: {PRIVATE_KEY_PATH}")
+    try:
+        with open(PRIVATE_KEY_PATH, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception as e:
+        raise RuntimeError(f"Impossible de lire la clé privée .pem: {e}")
 
 
 def _build_jwt() -> str:
