@@ -19,7 +19,11 @@
             <td>{{ acc.name or acc.nickname or acc.product or '-' }}</td>
             <td>{{ acc.iban or acc.masked_pan or '-' }}</td>
             <td>{{ acc.currency or '-' }}</td>
-            <td><a href="{{ url_for('balances', uid=acc.uid) }}">Voir soldes</a></td>
+            <td>
+              <a href="{{ url_for('balances', uid=acc.uid) }}">Voir soldes</a>
+              |
+              <a href="{{ url_for('transactions', uid=acc.uid) }}">Voir transactions</a>
+            </td>
           </tr>
         {% endfor %}
       </tbody>
@@ -28,4 +32,3 @@
     <p>Aucun compte en mémoire. Revenez à l'accueil et relancez le consentement.</p>
   {% endif %}
 {% endblock %}
-

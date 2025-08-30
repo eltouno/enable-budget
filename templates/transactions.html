@@ -1,0 +1,34 @@
+{% extends "layout.html" %}
+{% block content %}
+  <h2>Transactions</h2>
+  <p>UID: <code>{{ uid }}</code></p>
+
+  <form method="get" action="{{ url_for('transactions', uid=uid) }}" style="margin-bottom:1rem;">
+    <label>Du (date_from)</label>
+    <input required type="date" name="date_from" value="{{ (result.date_from or '')[:10] }}">
+    <label>Au (date_to)</label>
+    <input type="date" name="date_to" value="{{ (result.date_to or '')[:10] }}">
+    <button type="submit">Rechercher</button>
+    {% if result and result.count and result.date_from %}
+      <a style="margin-left:1rem;" href="{{ url_for('transactions_csv', uid=uid, date_from=result.date_from or '', date_to=result.date_to or '') }}">Exporter CSV</a>
+    {% endif %}
+  </form>
+  <p style="color:#666; font-size:.95rem;">Indiquez au moins la date de début. Plage maximale: {{ max_days }} jours.</p>
+
+  {% if error %}
+    <p style="color:crimson;">Erreur: {{ error }}</p>
+  {% endif %}
+
+  {% if result and result.count %}
+    <p>Total: {{ result.count }}</p>
+    <pre>{{ result.transactions | tojson(indent=2) }}</pre>
+  {% else %}
+    {% if result and result.date_from %}
+      <p>Aucune transaction pour la période sélectionnée.</p>
+    {% else %}
+      <p>Renseignez une date de début pour afficher des transactions.</p>
+    {% endif %}
+  {% endif %}
+
+  <p><a href="{{ url_for('accounts') }}">Retour aux comptes</a></p>
+{% endblock %}

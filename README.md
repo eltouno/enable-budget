@@ -14,6 +14,9 @@ Une web-app minimaliste est également fournie pour démarrer le consentement, l
   - (optionnel) ENABLE_ACCESS_JSON : JSON brut du champ `access` envoyé à `/auth`.
     - Par défaut, l'app envoie: `{ "valid_until": "<ISO>", "all_accounts": ["balances", "transactions"] }`
     - Si vous fournissez votre JSON et qu'il ne contient pas `valid_until`, il sera ajouté automatiquement avec la même valeur que le `valid_until` global.
+  - (optionnel) WEB_SECRET_KEY : secret Flask persistant pour conserver la session côté client (sinon un secret aléatoire est utilisé à chaque démarrage).
+  - (optionnel) WEB_SESSION_DAYS : durée de vie de la session (jours, défaut 14).
+  - (optionnel) WEB_STATE_FILE : chemin du cache local (JSON) pour persister `session_id` et `accounts` (défaut `.enable_budget_web_state.json`).
 
 ## Installation
 python -m venv .venv
@@ -42,19 +45,21 @@ python enable_budget_cli.py transactions --account-uid "<uid>" --date-from 2025-
 - `--debug` affiche des informations détaillées (URL, statut HTTP) pour diagnostiquer.
 - Si vous n'indiquez pas `--account-uid`, le script utilisera le compte par défaut (définissable via `set-default-account`) ou, à défaut, le seul compte présent en cache.
 
-## Web App (soldes en UI)
+## Web App (soldes, transactions, CSV)
 - Démarrer le serveur:
   - `python enable_budget_web.py`
 - Ouvrir `http://localhost:5001` (port par défaut 5001) ou ajustez avec `--port` ou `PORT`.
   - Pour définir l’URL de redirection par défaut, exportez `WEB_DEFAULT_REDIRECT_URL` (ex: `https://httpbin.org/anything`).
   - Renseigner `Nom de la banque (aspsp.name)`, `Pays` (ex: `BE`).
-  - Vérifier que la `Redirect URL` affichée (`http://localhost:5000/callback`) est whitelistée dans votre Control Panel.
+  - Vérifier que la `Redirect URL` affichée (`http://localhost:5001/callback`, ou celle définie par `WEB_DEFAULT_REDIRECT_URL`) est whitelistée dans votre Control Panel.
   - Vous serez redirigé vers la banque pour le consentement, puis de retour sur l'app.
-  - La page `Comptes` s'affiche; cliquez sur "Voir soldes" pour un compte.
+  - La page `Comptes` s'affiche; cliquez sur "Voir soldes" ou "Voir transactions" pour un compte.
+  - Transactions: indiquez au moins la date de début. Par défaut, l'export CSV exige un filtre et limite la plage à `WEB_TX_MAX_DAYS` (défaut 90 jours).
 
 Notes:
 - Certaines banques exigent un `redirect_url` en HTTPS. Si nécessaire, utilisez un tunnel (ex: ngrok) et whitelistez l'URL publique (ex: `https://xxxx.ngrok.app/callback`).
 - La web-app stocke `session_id` et `accounts` dans la session Flask côté serveur. Configurez `WEB_SECRET_KEY` pour un secret persistant.
+ - La web-app persiste aussi `session_id` et `accounts` dans un fichier local (`WEB_STATE_FILE`) pour survivre aux redémarrages. À la reprise, la session est réhydratée automatiquement.
 
 ## Dépannage rapide
 - Erreur "No such file or directory ... .pem":
@@ -78,6 +83,9 @@ Notes:
   - Utilisez `https://httpbin.org/anything` comme Redirect URL (via le formulaire ou `WEB_DEFAULT_REDIRECT_URL`).
   - À la fin du parcours, httpbin affiche les paramètres de la requête; copiez `code`.
   - Ouvrez `http://localhost:5001/callback?code=<votre-code>` pour finaliser la session dans l’app.
+- Limitation d'export CSV:
+  - Par défaut, l’export requiert `date_from` et impose une plage maximale de 90 jours.
+  - Pour modifier cette limite: `export WEB_TX_MAX_DAYS=30` (par exemple).
 - Assurez-vous d'avoir effectué le parcours de consentement (`auth-url` puis `exchange-code`).
 - Listez les comptes: `python enable_budget_cli.py list-accounts`
 - Définissez un compte par défaut (facultatif): `python enable_budget_cli.py set-default-account --account-uid "<uid>"`
