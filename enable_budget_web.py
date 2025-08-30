@@ -24,6 +24,8 @@ API_BASE = os.environ.get("ENABLE_API_BASE", "https://api.enablebanking.com").rs
 WEB_DEFAULT_REDIRECT_URL = os.environ.get("WEB_DEFAULT_REDIRECT_URL")  # ex: https://httpbin.org/anything
 TX_MAX_DAYS = int(os.environ.get("WEB_TX_MAX_DAYS", "90"))
 ACCESS_JSON = os.environ.get("ENABLE_ACCESS_JSON")  # optionnel: JSON brut pour le champ access
+WEB_STATE_FILE = os.environ.get("WEB_STATE_FILE", ".enable_budget_web_state.json")
+WEB_SESSION_DAYS = int(os.environ.get("WEB_SESSION_DAYS", "14"))
 
 
 def _audience_from_api_base() -> str:
@@ -77,6 +79,38 @@ def _get_access(valid_until_iso: str) -> Dict[str, Any]:
     }
 
 
+def _save_web_state(data: Dict[str, Any]) -> None:
+    try:
+        with open(WEB_STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        # best effort; ignorer en cas d'échec
+        pass
+
+
+def _load_web_state() -> Dict[str, Any]:
+    if not os.path.exists(WEB_STATE_FILE):
+        return {}
+    try:
+        with open(WEB_STATE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+@app.before_request
+def _ensure_session_persistence() -> None:
+    # Rendre la session persistante (cookie avec expiration)
+    session.permanent = True
+    # Réhydratation depuis le cache fichier si la session est vide (ex: redémarrage serveur)
+    if not session.get("accounts") or not session.get("session_id"):
+        st = _load_web_state()
+        if not session.get("accounts") and st.get("accounts"):
+            session["accounts"] = st.get("accounts")
+        if not session.get("session_id") and st.get("session_id"):
+            session["session_id"] = st.get("session_id")
+
+
 def _build_jwt() -> str:
     if not APP_ID:
         raise RuntimeError("Variable d'env ENABLE_APP_ID manquante")
@@ -121,6 +155,9 @@ def _request(method: str, path: str, *, json_body: Optional[Dict[str, Any]] = No
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("WEB_SECRET_KEY", os.urandom(24))
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=WEB_SESSION_DAYS)
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config.setdefault("SESSION_COOKIE_SECURE", False)
 
 
 @app.route("/")
@@ -192,8 +229,16 @@ def callback():
         return redirect(url_for("index"))
 
     data = resp.json()
-    session["session_id"] = data.get("session_id")
-    session["accounts"] = data.get("accounts", [])
+    session_id = data.get("session_id")
+    accounts_list = data.get("accounts", [])
+    session["session_id"] = session_id
+    session["accounts"] = accounts_list
+    # Persister localement pour survivre aux redémarrages du serveur
+    _save_web_state({
+        "session_id": session_id,
+        "accounts": accounts_list,
+        "updated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    })
     flash("Consentement validé et comptes chargés.", "success")
     return redirect(url_for("accounts"))
 
