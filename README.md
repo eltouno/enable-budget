@@ -15,7 +15,7 @@ Une web-app minimaliste est également fournie pour démarrer le consentement, l
 ## Installation
 python -m venv .venv
 source .venv/bin/activate  # (Windows: .venv\Scripts\activate)
-pip install -r requirements.txt
+pip install -r requirements.txt  # inclut PyJWT[crypto] -> cryptography
 
 ## Utilisation rapide
 # 1) Générer l'URL de consentement (ouvrir dans un navigateur)
@@ -58,6 +58,9 @@ Notes:
   - Evitez les guillemets résiduels dans la variable: `export ENABLE_PRIVATE_KEY_PATH=/Users/xxx/key.pem` (sans quotes), ou échappez correctement dans votre shell.
   - Le chemin `~` n'est pas toujours interprété par l'environnement: utilisez un chemin absolu ou laissez l’app l’expandre (support `~`, `$HOME`, `file://...`).
 - Vérifiez les variables d'environnement: `ENABLE_APP_ID`, `ENABLE_PRIVATE_KEY_PATH`/`ENABLE_PRIVATE_KEY`, et l'accessibilité du fichier PEM.
+- Erreur "Algorithm 'RS256' could not be found":
+  - Installez le backend crypto pour PyJWT: `pip install 'PyJWT[crypto]'` (ou `pip install cryptography`).
+  - Réinstallez les dépendances si besoin: `pip install -r requirements.txt`.
 - Assurez-vous d'avoir effectué le parcours de consentement (`auth-url` puis `exchange-code`).
 - Listez les comptes: `python enable_budget_cli.py list-accounts`
 - Définissez un compte par défaut (facultatif): `python enable_budget_cli.py set-default-account --account-uid "<uid>"`

@@ -108,6 +108,9 @@ def _build_jwt() -> str:
             token = token.decode("utf-8")
         return token
     except Exception as e:
+        msg = str(e)
+        if "Algorithm 'RS256' could not be found" in msg or "Do you have cryptography installed" in msg:
+            _die("Echec de signature JWT (RS256 indisponible). Installez le support crypto: pip install 'PyJWT[crypto]' ou pip install cryptography")
         _die(f"Echec de signature JWT: {e}")
     return ""  # unreachable
 

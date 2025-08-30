@@ -65,10 +65,16 @@ def _build_jwt() -> str:
         "exp": now + 300,
     }
     headers = {"kid": APP_ID}
-    token = jwt.encode(payload, private_key, algorithm="RS256", headers=headers)
-    if isinstance(token, bytes):
-        token = token.decode("utf-8")
-    return token
+    try:
+        token = jwt.encode(payload, private_key, algorithm="RS256", headers=headers)
+        if isinstance(token, bytes):
+            token = token.decode("utf-8")
+        return token
+    except Exception as e:
+        msg = str(e)
+        if "Algorithm 'RS256' could not be found" in msg or "Do you have cryptography installed" in msg:
+            raise RuntimeError("RS256 indisponible. Installez le support crypto: pip install 'PyJWT[crypto]' ou pip install cryptography")
+        raise
 
 
 def _headers(*, include_session: bool = True) -> Dict[str, str]:
