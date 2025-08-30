@@ -5,8 +5,8 @@ Mini-CLI pour lire soldes et transactions via enable:Banking.
 ## Prérequis
 - Python 3.10+
 - Variables d'environnement:
-  - ENABLE_APP_ID : votre Application ID (UUID)
-  - ENABLE_PRIVATE_KEY_PATH : chemin absolu du fichier .pem (clé privée RSA)
+  - ENABLE_APP_ID : 0472cd59-ae3d-4e53-8518-37afdbc149c3
+  - ENABLE_PRIVATE_KEY_PATH : /Users/antoinedelfosse/Documents
   - (optionnel) ENABLE_API_BASE : défaut https://api.enablebanking.com
 
 ## Installation
