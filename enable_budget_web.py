@@ -19,6 +19,7 @@ APP_ID = os.environ.get("ENABLE_APP_ID")
 PRIVATE_KEY_PATH = os.environ.get("ENABLE_PRIVATE_KEY_PATH")
 PRIVATE_KEY_INLINE = os.environ.get("ENABLE_PRIVATE_KEY")  # contenu PEM direct (optionnel)
 API_BASE = os.environ.get("ENABLE_API_BASE", "https://api.enablebanking.com").rstrip("/")
+WEB_DEFAULT_REDIRECT_URL = os.environ.get("WEB_DEFAULT_REDIRECT_URL")  # ex: https://httpbin.org/anything
 ACCESS_JSON = os.environ.get("ENABLE_ACCESS_JSON")  # optionnel: JSON brut pour le champ access
 
 
@@ -122,7 +123,7 @@ app.config["SECRET_KEY"] = os.environ.get("WEB_SECRET_KEY", os.urandom(24))
 @app.route("/")
 def index():
     # Suggérer une redirect URL basée sur l'hôte courant
-    callback_url = url_for("callback", _external=True)
+    callback_url = WEB_DEFAULT_REDIRECT_URL or url_for("callback", _external=True)
     return render_template("index.html", callback_url=callback_url)
 
 
@@ -130,7 +131,8 @@ def index():
 def start_consent():
     bank_name = request.form.get("bank_name", "").strip()
     country = request.form.get("country", "BE").strip() or "BE"
-    redirect_url = request.form.get("redirect_url", url_for("callback", _external=True)).strip()
+    default_redirect = WEB_DEFAULT_REDIRECT_URL or url_for("callback", _external=True)
+    redirect_url = request.form.get("redirect_url", default_redirect).strip()
 
     if not bank_name:
         flash("Veuillez saisir le nom de la banque (aspsp.name).", "error")

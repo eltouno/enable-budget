@@ -46,6 +46,7 @@ python enable_budget_cli.py transactions --account-uid "<uid>" --date-from 2025-
 - Démarrer le serveur:
   - `python enable_budget_web.py`
 - Ouvrir `http://localhost:5001` (port par défaut 5001) ou ajustez avec `--port` ou `PORT`.
+  - Pour définir l’URL de redirection par défaut, exportez `WEB_DEFAULT_REDIRECT_URL` (ex: `https://httpbin.org/anything`).
   - Renseigner `Nom de la banque (aspsp.name)`, `Pays` (ex: `BE`).
   - Vérifier que la `Redirect URL` affichée (`http://localhost:5000/callback`) est whitelistée dans votre Control Panel.
   - Vous serez redirigé vers la banque pour le consentement, puis de retour sur l'app.
@@ -68,6 +69,15 @@ Notes:
   - L'API exige `state` et `access`.
   - Par défaut, l'app envoie `state` aléatoire et `access = {"all_accounts": ["balances", "transactions"]}`.
   - Si votre banque/compte exige un autre schéma, définissez `ENABLE_ACCESS_JSON` avec le JSON attendu.
+
+### Redirect URL non autorisée (localhost refusé)
+- Option A — Tunnel HTTPS (recommandé):
+  - `ngrok http 5001` puis whitelistez `https://<id>.ngrok-free.app/callback` dans le Control Panel.
+  - Lancez l’app et utilisez cette URL comme Redirect URL.
+- Option B — httpbin + callback manuel:
+  - Utilisez `https://httpbin.org/anything` comme Redirect URL (via le formulaire ou `WEB_DEFAULT_REDIRECT_URL`).
+  - À la fin du parcours, httpbin affiche les paramètres de la requête; copiez `code`.
+  - Ouvrez `http://localhost:5001/callback?code=<votre-code>` pour finaliser la session dans l’app.
 - Assurez-vous d'avoir effectué le parcours de consentement (`auth-url` puis `exchange-code`).
 - Listez les comptes: `python enable_budget_cli.py list-accounts`
 - Définissez un compte par défaut (facultatif): `python enable_budget_cli.py set-default-account --account-uid "<uid>"`
