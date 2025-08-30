@@ -12,12 +12,14 @@ import requests
 import jwt
 from urllib.parse import urlparse
 import argparse
+import secrets
 
 
 APP_ID = os.environ.get("ENABLE_APP_ID")
 PRIVATE_KEY_PATH = os.environ.get("ENABLE_PRIVATE_KEY_PATH")
 PRIVATE_KEY_INLINE = os.environ.get("ENABLE_PRIVATE_KEY")  # contenu PEM direct (optionnel)
 API_BASE = os.environ.get("ENABLE_API_BASE", "https://api.enablebanking.com").rstrip("/")
+ACCESS_JSON = os.environ.get("ENABLE_ACCESS_JSON")  # optionnel: JSON brut pour le champ access
 
 
 def _audience_from_api_base() -> str:
@@ -51,6 +53,18 @@ def _load_private_key() -> str:
             return f.read()
     except Exception as e:
         raise RuntimeError(f"Impossible de lire la clé privée .pem: {e}")
+
+
+def _get_access() -> Dict[str, Any]:
+    # Permettre la configuration via JSON brut
+    if ACCESS_JSON:
+        try:
+            return json.loads(ACCESS_JSON)
+        except Exception as e:
+            raise RuntimeError(f"ENABLE_ACCESS_JSON invalide: {e}")
+    # Valeur par défaut raisonnable: accès balances et transactions pour tous les comptes
+    # Ajustez si votre environnement exige un autre schéma.
+    return {"all_accounts": ["balances", "transactions"]}
 
 
 def _build_jwt() -> str:
@@ -117,10 +131,15 @@ def start_consent():
         return redirect(url_for("index"))
 
     valid_until = (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat(timespec="seconds")
+    # Génère un état aléatoire pour sécuriser le parcours OAuth-like
+    oauth_state = secrets.token_urlsafe(16)
+    session["oauth_state"] = oauth_state
     body = {
         "aspsp": {"name": bank_name, "country": country},
         "redirect_url": redirect_url,
         "valid_until": valid_until,
+        "state": oauth_state,
+        "access": _get_access(),
     }
     try:
         resp = _request("POST", "/auth", json_body=body)
@@ -146,8 +165,14 @@ def start_consent():
 @app.get("/callback")
 def callback():
     code = request.args.get("code")
+    state = request.args.get("state")
     if not code:
         flash("Paramètre 'code' manquant dans l'URL de retour.", "error")
+        return redirect(url_for("index"))
+    # Vérifier l'intégrité du parcours via 'state'
+    expected_state = session.get("oauth_state")
+    if expected_state and state and state != expected_state:
+        flash("State de retour invalide. Relancez le parcours.", "error")
         return redirect(url_for("index"))
 
     resp = _request("POST", "/sessions", json_body={"code": code})

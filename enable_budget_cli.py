@@ -25,6 +25,7 @@ from typing import Any, Dict, Optional
 
 import jwt
 import requests
+import secrets
 
 # ----------------------------
 # Config & utilitaires
@@ -188,6 +189,17 @@ def cmd_auth_url(args: argparse.Namespace) -> None:
     """
     valid_for = timedelta(minutes=args.valid_minutes)
     valid_until = (datetime.now(timezone.utc) + valid_for).isoformat(timespec="seconds")
+    oauth_state = secrets.token_urlsafe(16)
+    # Construire access à partir d'un JSON optionnel
+    access: Dict[str, Any]
+    access_json = os.environ.get("ENABLE_ACCESS_JSON")
+    if access_json:
+        try:
+            access = json.loads(access_json)
+        except Exception as e:
+            _die(f"ENABLE_ACCESS_JSON invalide: {e}")
+    else:
+        access = {"all_accounts": ["balances", "transactions"]}
 
     body = {
         "aspsp": {
@@ -195,7 +207,9 @@ def cmd_auth_url(args: argparse.Namespace) -> None:
             "country": args.country
         },
         "redirect_url": args.redirect_url,
-        "valid_until": valid_until
+        "valid_until": valid_until,
+        "state": oauth_state,
+        "access": access
         # Ajoutez d'autres champs si votre usage le nécessite (psu_type, etc.)
     }
 
@@ -208,6 +222,7 @@ def cmd_auth_url(args: argparse.Namespace) -> None:
         print("\nOuvrez ce lien dans un navigateur pour donner le consentement :\n")
         print(url)
         print("\nUne fois terminé, récupérez le paramètre ?code=... de l'URL de retour.\n")
+        print(f"State envoyé: {oauth_state}")
     elif resp.status_code == 422:
         print(f"Réponse 422 /auth:\n{resp.text}", file=sys.stderr)
         _explain_422()

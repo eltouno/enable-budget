@@ -11,6 +11,7 @@ Une web-app minimaliste est également fournie pour démarrer le consentement, l
   - ENABLE_PRIVATE_KEY_PATH : chemin complet vers votre fichier clé RSA privée au format PEM (ex: `/Users/xxxx/enable_private.pem`)
     - ou bien ENABLE_PRIVATE_KEY : contenu PEM directement (collez la clé, commencant par `-----BEGIN ...`)
   - (optionnel) ENABLE_API_BASE : défaut https://api.enablebanking.com
+  - (optionnel) ENABLE_ACCESS_JSON : JSON brut du champ `access` envoyé à `/auth` (ex: `{ "all_accounts": ["balances", "transactions"] }`)
 
 ## Installation
 python -m venv .venv
@@ -61,6 +62,10 @@ Notes:
 - Erreur "Algorithm 'RS256' could not be found":
   - Installez le backend crypto pour PyJWT: `pip install 'PyJWT[crypto]'` (ou `pip install cryptography`).
   - Réinstallez les dépendances si besoin: `pip install -r requirements.txt`.
+- Erreur 422 /auth (access/state requis):
+  - L'API exige `state` et `access`.
+  - Par défaut, l'app envoie `state` aléatoire et `access = {"all_accounts": ["balances", "transactions"]}`.
+  - Si votre banque/compte exige un autre schéma, définissez `ENABLE_ACCESS_JSON` avec le JSON attendu.
 - Assurez-vous d'avoir effectué le parcours de consentement (`auth-url` puis `exchange-code`).
 - Listez les comptes: `python enable_budget_cli.py list-accounts`
 - Définissez un compte par défaut (facultatif): `python enable_budget_cli.py set-default-account --account-uid "<uid>"`
