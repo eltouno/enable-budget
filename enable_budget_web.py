@@ -11,6 +11,7 @@ from flask import Flask, redirect, render_template, request, session, url_for, f
 import requests
 import jwt
 from urllib.parse import urlparse
+import argparse
 
 
 APP_ID = os.environ.get("ENABLE_APP_ID")
@@ -160,7 +161,22 @@ def balances(uid: str):
     return render_template("balances.html", uid=uid, balances=data)
 
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", "5000"))
-    app.run(host="0.0.0.0", port=port, debug=os.environ.get("FLASK_DEBUG") == "1")
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="enable-budget Web App")
+    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "5000")), help="Port HTTP (défaut: 5000)")
+    parser.add_argument("--host", default=os.environ.get("HOST", "0.0.0.0"), help="Hôte d'écoute (défaut: 0.0.0.0)")
+    parser.add_argument("--debug", action="store_true", default=os.environ.get("FLASK_DEBUG") == "1", help="Active le mode debug Flask")
+    parser.add_argument("--api-base", help="Override de l'API base URL (ex: https://api.enablebanking.com)")
+    return parser.parse_args()
 
+
+def main() -> None:
+    global API_BASE
+    args = _parse_args()
+    if args.api_base:
+        API_BASE = str(args.api_base).rstrip("/")
+    app.run(host=args.host, port=args.port, debug=args.debug)
+
+
+if __name__ == "__main__":
+    main()
