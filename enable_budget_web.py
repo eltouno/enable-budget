@@ -13,6 +13,8 @@ import jwt
 from urllib.parse import urlparse
 import argparse
 import secrets
+import csv
+import io
 
 
 APP_ID = os.environ.get("ENABLE_APP_ID")
@@ -20,6 +22,7 @@ PRIVATE_KEY_PATH = os.environ.get("ENABLE_PRIVATE_KEY_PATH")
 PRIVATE_KEY_INLINE = os.environ.get("ENABLE_PRIVATE_KEY")  # contenu PEM direct (optionnel)
 API_BASE = os.environ.get("ENABLE_API_BASE", "https://api.enablebanking.com").rstrip("/")
 WEB_DEFAULT_REDIRECT_URL = os.environ.get("WEB_DEFAULT_REDIRECT_URL")  # ex: https://httpbin.org/anything
+TX_MAX_DAYS = int(os.environ.get("WEB_TX_MAX_DAYS", "90"))
 ACCESS_JSON = os.environ.get("ENABLE_ACCESS_JSON")  # optionnel: JSON brut pour le champ access
 
 
@@ -217,6 +220,130 @@ def balances(uid: str):
         return redirect(url_for("accounts"))
     data = resp.json()
     return render_template("balances.html", uid=uid, balances=data)
+
+
+def _collect_transactions(uid: str, *, date_from: Optional[str] = None, date_to: Optional[str] = None, max_pages: int = 20) -> Dict[str, Any]:
+    # Si aucune date fournie, ne supposez rien ici; laissez les routes décider
+    if not date_from:
+        raise RuntimeError("Veuillez indiquer une date de début (date_from)")
+
+    path = f"/accounts/{uid}/transactions"
+    params: Dict[str, Any] = {"date_from": date_from}
+    if date_to:
+        params["date_to"] = date_to
+
+    all_tx = []
+    pages = 0
+    while True:
+        resp = _request("GET", path, params=params)
+        if resp.status_code != 200:
+            raise RuntimeError(f"Echec {path} ({resp.status_code}): {resp.text}")
+        page = resp.json()
+        items = page.get("transactions") or page.get("items") or []
+        all_tx.extend(items)
+        cont = page.get("continuation_key")
+        pages += 1
+        if cont and pages < max_pages:
+            params = {"continuation_key": cont}
+        else:
+            break
+    return {"transactions": all_tx, "count": len(all_tx), "date_from": date_from, "date_to": date_to}
+
+
+def _flatten(obj: Any, prefix: str = "") -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            key = f"{prefix}{k}" if not prefix else f"{prefix}.{k}"
+            if isinstance(v, (dict, list)):
+                # pour les listes, garder JSON compact; pour les dicts, aplatir récursivement
+                if isinstance(v, dict):
+                    out.update(_flatten(v, key))
+                else:
+                    out[key] = json.dumps(v, ensure_ascii=False)
+            else:
+                out[key] = v
+    else:
+        out[prefix or "value"] = obj
+    return out
+
+
+def _transactions_to_csv(transactions: Any) -> str:
+    # Aplatit tous les objets et crée des colonnes union
+    rows = [_flatten(t) for t in (transactions or [])]
+    # En-têtes: union triée pour stabilité
+    headers = sorted({k for r in rows for k in r.keys()})
+    sio = io.StringIO()
+    writer = csv.DictWriter(sio, fieldnames=headers, extrasaction="ignore")
+    writer.writeheader()
+    for r in rows:
+        writer.writerow({k: r.get(k, "") for k in headers})
+    return sio.getvalue()
+
+
+@app.get("/transactions/<uid>")
+def transactions(uid: str):
+    if not uid:
+        flash("UID manquant.", "error")
+        return redirect(url_for("accounts"))
+
+    date_from = (request.args.get("date_from") or "").strip()
+    date_to = (request.args.get("date_to") or "").strip()
+    err = None
+    result: Dict[str, Any] = {"transactions": [], "count": 0, "date_from": date_from, "date_to": date_to}
+
+    # Afficher la page sans requête si aucun filtre saisi
+    if not date_from:
+        return render_template("transactions.html", uid=uid, result=result, error=None, max_days=TX_MAX_DAYS)
+
+    # Valider le format et la plage
+    try:
+        df = datetime.strptime(date_from, "%Y-%m-%d").date()
+        dt = datetime.strptime(date_to, "%Y-%m-%d").date() if date_to else datetime.now(timezone.utc).date()
+        if df > dt:
+            raise ValueError("La date de début est après la date de fin")
+        if (dt - df).days > TX_MAX_DAYS:
+            raise ValueError(f"Plage trop large: max {TX_MAX_DAYS} jours")
+        # OK, charger les transactions
+        result = _collect_transactions(uid, date_from=date_from, date_to=dt.isoformat())
+    except Exception as e:
+        err = str(e)
+    return render_template("transactions.html", uid=uid, result=result, error=err, max_days=TX_MAX_DAYS)
+
+
+@app.get("/transactions/<uid>/csv")
+def transactions_csv(uid: str):
+    if not uid:
+        flash("UID manquant.", "error")
+        return redirect(url_for("accounts"))
+    date_from = (request.args.get("date_from") or "").strip() or None
+    date_to = (request.args.get("date_to") or "").strip() or None
+    # Exiger un filtre de date pour limiter l'export
+    if not date_from:
+        flash("Veuillez préciser au moins 'date_from' pour exporter en CSV.", "error")
+        return redirect(url_for("transactions", uid=uid))
+    # Appliquer la limite de plage
+    try:
+        df = datetime.strptime(date_from, "%Y-%m-%d").date()
+        dt = datetime.strptime(date_to, "%Y-%m-%d").date() if date_to else datetime.now(timezone.utc).date()
+        if df > dt:
+            raise ValueError("La date de début est après la date de fin")
+        if (dt - df).days > TX_MAX_DAYS:
+            raise ValueError(f"Plage trop large pour l'export: max {TX_MAX_DAYS} jours")
+        result = _collect_transactions(uid, date_from=df.isoformat(), date_to=dt.isoformat())
+    except Exception as e:
+        flash(str(e), "error")
+        return redirect(url_for("transactions", uid=uid, date_from=(date_from or ""), date_to=(date_to or "")))
+
+    csv_text = _transactions_to_csv(result.get("transactions") or [])
+    filename = f"transactions_{uid}_{result.get('date_from') or ''}_{result.get('date_to') or ''}.csv".replace("/", "-")
+    return app.response_class(
+        csv_text,
+        mimetype="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f"attachment; filename=\"{filename}\""
+        },
+    )
 
 
 def _parse_args() -> argparse.Namespace:
