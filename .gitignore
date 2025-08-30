@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+
+# macOS / IDE
+.DS_Store
+.vscode/
+
+# Secrets / env
+.env
+*.pem
+.enable_budget_local.json
