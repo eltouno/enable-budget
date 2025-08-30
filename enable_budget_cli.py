@@ -31,7 +31,7 @@ import requests
 # ----------------------------
 
 APP_ID = os.environ.get("ENABLE_APP_ID")  # <Application ID> (UUID) -> kid
-PRIVATE_KEY_PATH = os.environ.get("ENABLE_PRIVATE_KEY_PATH")  # chemin vers .pem
+PRIVATE_KEY_PATH = os.environ.get("ENABLE_PRIVATE_KEY_PATH")  # chemin vers .pem (fichier)
 API_BASE = os.environ.get("ENABLE_API_BASE", "https://api.enablebanking.com").rstrip("/")
 
 LOCAL_STATE = ".enable_budget_local.json"  # stocke accounts après /sessions
@@ -53,6 +53,17 @@ def _load_private_key() -> str:
     return ""  # unreachable
 
 
+def _audience_from_api_base() -> str:
+    """Retourne l'"aud" dérivé de API_BASE (host)."""
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(API_BASE).netloc or API_BASE
+        # Par compat: si l'env contient déjà un host sans schéma
+        return host
+    except Exception:
+        return "api.enablebanking.com"
+
+
 def _build_jwt() -> str:
     """Construit un JWT signé RS256"""
     if not APP_ID:
@@ -62,7 +73,7 @@ def _build_jwt() -> str:
     now = int(time.time())
     payload = {
         "iss": "enablebanking.com",
-        "aud": "api.enablebanking.com",
+        "aud": _audience_from_api_base(),
         "iat": now,
         "exp": now + 300,  # 5 minutes
     }
@@ -80,11 +91,20 @@ def _build_jwt() -> str:
 
 
 def _headers() -> Dict[str, str]:
-    return {
+    headers = {
         "Authorization": f"Bearer {_build_jwt()}",
         "Content-Type": "application/json",
         "Accept": "application/json",
     }
+    # Joindre la session si disponible (certaines routes peuvent l'exiger)
+    try:
+        state = _load_local_state()
+        session_id = state.get("session_id")
+        if session_id:
+            headers["X-EnableBanking-Session"] = session_id
+    except Exception:
+        pass
+    return headers
 
 
 def _request(method: str, path: str, *, json_body: Optional[Dict[str, Any]] = None, params: Optional[Dict[str, Any]] = None) -> requests.Response:
@@ -243,6 +263,11 @@ def cmd_transactions(args: argparse.Namespace) -> None:
         _die("--account-uid est requis")
     if not args.date_from:
         _die("--date-from est requis (format YYYY-MM-DD)")
+    # Validation stricte du format de date
+    try:
+        datetime.strptime(args.date_from, "%Y-%m-%d")
+    except ValueError:
+        _die("--date-from doit être au format YYYY-MM-DD")
 
     path = f"/accounts/{args.account_uid}/transactions"
     params = {"date_from": args.date_from}
@@ -275,6 +300,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="enable-budget CLI (lecture seule: soldes & transactions)"
     )
+    parser.add_argument("--api-base", help="Override de l'API base URL (ex: https://api.enablebanking.com)")
     sub = parser.add_subparsers(dest="command")
 
     # auth-url
@@ -306,6 +332,10 @@ def main() -> None:
     p_tx.set_defaults(func=cmd_transactions)
 
     args = parser.parse_args()
+    # Permet de surcharger API_BASE depuis la CLI
+    if getattr(args, "api_base", None):
+        global API_BASE
+        API_BASE = str(args.api_base).rstrip("/")
     if not args.command:
         parser.print_help()
         sys.exit(0)
