@@ -173,7 +173,7 @@ def balances(uid: str):
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="enable-budget Web App")
-    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "5000")), help="Port HTTP (défaut: 5000)")
+    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "5001")), help="Port HTTP (défaut: 5001)")
     parser.add_argument("--host", default=os.environ.get("HOST", "0.0.0.0"), help="Hôte d'écoute (défaut: 0.0.0.0)")
     parser.add_argument("--debug", action="store_true", default=os.environ.get("FLASK_DEBUG") == "1", help="Active le mode debug Flask")
     parser.add_argument("--api-base", help="Override de l'API base URL (ex: https://api.enablebanking.com)")
