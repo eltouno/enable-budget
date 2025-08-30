@@ -1,0 +1,31 @@
+{% extends "layout.html" %}
+{% block content %}
+  <h2>Comptes</h2>
+  {% if accounts %}
+    <table>
+      <thead>
+        <tr>
+          <th>UID</th>
+          <th>Nom</th>
+          <th>IBAN/PAN</th>
+          <th>Devise</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for acc in accounts %}
+          <tr>
+            <td>{{ acc.uid }}</td>
+            <td>{{ acc.name or acc.nickname or acc.product or '-' }}</td>
+            <td>{{ acc.iban or acc.masked_pan or '-' }}</td>
+            <td>{{ acc.currency or '-' }}</td>
+            <td><a href="{{ url_for('balances', uid=acc.uid) }}">Voir soldes</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>Aucun compte en mémoire. Revenez à l'accueil et relancez le consentement.</p>
+  {% endif %}
+{% endblock %}
+

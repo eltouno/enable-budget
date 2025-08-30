@@ -1,0 +1,24 @@
+{% extends "layout.html" %}
+{% block content %}
+  <h1>enable-budget (Web)</h1>
+  <p>Démarrez un consentement pour récupérer vos comptes et consulter leurs soldes.</p>
+
+  <form method="post" action="/start">
+    <label>Nom de la banque (aspsp.name)</label>
+    <input type="text" name="bank_name" placeholder="ex: Belfius" required>
+
+    <label>Pays (aspsp.country)</label>
+    <input type="text" name="country" value="BE">
+
+    <label>Redirect URL (doit être whitelistée)</label>
+    <input type="text" name="redirect_url" value="{{ callback_url }}">
+
+    <p>
+      <button type="submit">Obtenir l'URL de consentement</button>
+    </p>
+    <p style="color:#666; font-size:.95rem;">
+      Astuce: selon la banque, un redirect en HTTP (localhost) peut être refusé. Utilisez HTTPS et déclarez exactement cette URL dans le Control Panel.
+    </p>
+  </form>
+{% endblock %}
+

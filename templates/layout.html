@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>enable-budget (Web)</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 2rem; color: #222; }
+      header { margin-bottom: 1rem; }
+      .flash { padding: .6rem .8rem; border-radius: 6px; margin: .5rem 0; }
+      .flash.error { background: #ffe2e2; color: #9b1c1c; }
+      .flash.success { background: #e6ffed; color: #046c4e; }
+      label { display:block; margin:.5rem 0 .25rem; }
+      input[type=text] { width: 100%; max-width: 480px; padding: .5rem; }
+      button { padding: .5rem .8rem; border: 1px solid #ccc; border-radius: 6px; cursor: pointer; }
+      a { color: #0b62c4; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      table { border-collapse: collapse; width: 100%; max-width: 960px; }
+      th, td { border:1px solid #ddd; padding:.5rem; text-align:left; }
+      th { background:#f7f7f7; }
+      pre { background:#f7f7f7; padding: .75rem; border-radius: 8px; overflow:auto; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a href="/">Accueil</a> · <a href="/accounts">Comptes</a>
+    </header>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash {{category}}">{{message}}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </body>
+  </html>
+

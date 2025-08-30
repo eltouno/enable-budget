@@ -2,6 +2,8 @@
 
 Mini-CLI pour lire soldes et transactions via enable:Banking.
 
+Une web-app minimaliste est également fournie pour démarrer le consentement, lister les comptes et afficher leurs soldes.
+
 ## Prérequis
 - Python 3.10+
 - Variables d'environnement:
@@ -35,6 +37,19 @@ python enable_budget_cli.py transactions --account-uid "<uid>" --date-from 2025-
 - Le script ajoute automatiquement l'en-tête `X-EnableBanking-Session` s'il trouve un `session_id` dans `.enable_budget_local.json`.
 - `--debug` affiche des informations détaillées (URL, statut HTTP) pour diagnostiquer.
 - Si vous n'indiquez pas `--account-uid`, le script utilisera le compte par défaut (définissable via `set-default-account`) ou, à défaut, le seul compte présent en cache.
+
+## Web App (soldes en UI)
+- Démarrer le serveur:
+  - `python enable_budget_web.py`
+- Ouvrir `http://localhost:5000`
+  - Renseigner `Nom de la banque (aspsp.name)`, `Pays` (ex: `BE`).
+  - Vérifier que la `Redirect URL` affichée (`http://localhost:5000/callback`) est whitelistée dans votre Control Panel.
+  - Vous serez redirigé vers la banque pour le consentement, puis de retour sur l'app.
+  - La page `Comptes` s'affiche; cliquez sur "Voir soldes" pour un compte.
+
+Notes:
+- Certaines banques exigent un `redirect_url` en HTTPS. Si nécessaire, utilisez un tunnel (ex: ngrok) et whitelistez l'URL publique (ex: `https://xxxx.ngrok.app/callback`).
+- La web-app stocke `session_id` et `accounts` dans la session Flask côté serveur. Configurez `WEB_SECRET_KEY` pour un secret persistant.
 
 ## Dépannage rapide
 - Vérifiez les variables d'environnement: `ENABLE_APP_ID`, `ENABLE_PRIVATE_KEY_PATH`, et l'accessibilité du fichier PEM.
