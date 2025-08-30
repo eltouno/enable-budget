@@ -28,6 +28,14 @@ def _audience_from_api_base() -> str:
         return "api.enablebanking.com"
 
 
+def _normalize_path(p: str) -> str:
+    p = (p or "").strip().strip('"').strip("'")
+    if p.startswith("file://"):
+        p = p[len("file://"):]
+    p = os.path.expanduser(os.path.expandvars(p))
+    return p
+
+
 def _load_private_key() -> str:
     # 1) Autoriser le contenu PEM directement via ENABLE_PRIVATE_KEY
     if PRIVATE_KEY_INLINE:
@@ -35,10 +43,11 @@ def _load_private_key() -> str:
     # 2) Sinon lire depuis le chemin de fichier ENABLE_PRIVATE_KEY_PATH
     if not PRIVATE_KEY_PATH:
         raise RuntimeError("Clé privée manquante: définissez ENABLE_PRIVATE_KEY (contenu PEM) ou ENABLE_PRIVATE_KEY_PATH (chemin fichier)")
-    if not os.path.exists(PRIVATE_KEY_PATH):
-        raise RuntimeError(f"Fichier PEM introuvable: {PRIVATE_KEY_PATH}")
+    normalized = _normalize_path(PRIVATE_KEY_PATH)
+    if not os.path.exists(normalized):
+        raise RuntimeError(f"Fichier PEM introuvable: {normalized} (depuis ENABLE_PRIVATE_KEY_PATH='{PRIVATE_KEY_PATH}')")
     try:
-        with open(PRIVATE_KEY_PATH, "r", encoding="utf-8") as f:
+        with open(normalized, "r", encoding="utf-8") as f:
             return f.read()
     except Exception as e:
         raise RuntimeError(f"Impossible de lire la clé privée .pem: {e}")

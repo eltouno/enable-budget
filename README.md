@@ -42,7 +42,7 @@ python enable_budget_cli.py transactions --account-uid "<uid>" --date-from 2025-
 ## Web App (soldes en UI)
 - Démarrer le serveur:
   - `python enable_budget_web.py`
-- Ouvrir `http://localhost:5000`
+- Ouvrir `http://localhost:5001` (port par défaut 5001) ou ajustez avec `--port` ou `PORT`.
   - Renseigner `Nom de la banque (aspsp.name)`, `Pays` (ex: `BE`).
   - Vérifier que la `Redirect URL` affichée (`http://localhost:5000/callback`) est whitelistée dans votre Control Panel.
   - Vous serez redirigé vers la banque pour le consentement, puis de retour sur l'app.
@@ -55,6 +55,8 @@ Notes:
 ## Dépannage rapide
 - Erreur "No such file or directory ... .pem":
   - Corrigez `ENABLE_PRIVATE_KEY_PATH` vers le bon chemin absolu, ou utilisez `ENABLE_PRIVATE_KEY` avec le contenu PEM.
+  - Evitez les guillemets résiduels dans la variable: `export ENABLE_PRIVATE_KEY_PATH=/Users/xxx/key.pem` (sans quotes), ou échappez correctement dans votre shell.
+  - Le chemin `~` n'est pas toujours interprété par l'environnement: utilisez un chemin absolu ou laissez l’app l’expandre (support `~`, `$HOME`, `file://...`).
 - Vérifiez les variables d'environnement: `ENABLE_APP_ID`, `ENABLE_PRIVATE_KEY_PATH`/`ENABLE_PRIVATE_KEY`, et l'accessibilité du fichier PEM.
 - Assurez-vous d'avoir effectué le parcours de consentement (`auth-url` puis `exchange-code`).
 - Listez les comptes: `python enable_budget_cli.py list-accounts`
