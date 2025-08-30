@@ -35,6 +35,7 @@ PRIVATE_KEY_PATH = os.environ.get("ENABLE_PRIVATE_KEY_PATH")  # chemin vers .pem
 API_BASE = os.environ.get("ENABLE_API_BASE", "https://api.enablebanking.com").rstrip("/")
 
 LOCAL_STATE = ".enable_budget_local.json"  # stocke accounts après /sessions
+DEBUG = os.environ.get("ENABLE_DEBUG", "").lower() in {"1", "true", "yes"}
 
 
 def _die(msg: str, code: int = 1) -> None:
@@ -51,6 +52,11 @@ def _load_private_key() -> str:
     except Exception as e:
         _die(f"Impossible de lire la clé privée .pem: {e}")
     return ""  # unreachable
+
+
+def _log(msg: str) -> None:
+    if DEBUG:
+        print(f"[DEBUG] {msg}", file=sys.stderr)
 
 
 def _audience_from_api_base() -> str:
@@ -104,13 +110,16 @@ def _headers() -> Dict[str, str]:
             headers["X-EnableBanking-Session"] = session_id
     except Exception:
         pass
+    _log(f"Using API_BASE={API_BASE} aud={_audience_from_api_base()} headers={{'Accept','Content-Type','Authorization','X-EnableBanking-Session' in headers}}")
     return headers
 
 
 def _request(method: str, path: str, *, json_body: Optional[Dict[str, Any]] = None, params: Optional[Dict[str, Any]] = None) -> requests.Response:
     url = f"{API_BASE}{path}"
     try:
+        _log(f"HTTP {method.upper()} {url} params={params} body={(json_body if json_body else None)}")
         resp = requests.request(method=method.upper(), url=url, headers=_headers(), json=json_body, params=params, timeout=30)
+        _log(f"-> {resp.status_code} {resp.reason}; len={len(resp.text or '')}")
         return resp
     except requests.RequestException as e:
         _die(f"Requête réseau échouée ({method} {url}): {e}")
@@ -237,15 +246,47 @@ def cmd_list_accounts(_: argparse.Namespace) -> None:
         currency = acc.get("currency") or "-"
         print(f"{idx:02d}. uid={uid} | {name} | {iban} | {currency}")
 
+    # Indiquer le défaut si présent
+    default_uid = _get_default_account_uid(allow_single=False)
+    if default_uid:
+        print(f"\nCompte par défaut: {default_uid}")
+
+
+def _get_default_account_uid(allow_single: bool = True) -> Optional[str]:
+    state = _load_local_state()
+    accounts = state.get("accounts") or []
+    default_uid = state.get("default_account_uid")
+    if default_uid and any(acc.get("uid") == default_uid for acc in accounts):
+        return default_uid
+    if allow_single and len(accounts) == 1:
+        return accounts[0].get("uid")
+    return None
+
+
+def cmd_set_default_account(args: argparse.Namespace) -> None:
+    uid = args.account_uid
+    if not uid:
+        _die("--account-uid est requis")
+    state = _load_local_state()
+    accounts = state.get("accounts") or []
+    if not accounts:
+        _die("Aucun compte en cache. Exécutez d'abord: exchange-code --code ...")
+    if not any(acc.get("uid") == uid for acc in accounts):
+        _die("UID inconnu. Utilisez list-accounts pour vérifier.")
+    state["default_account_uid"] = uid
+    _save_local_state(state)
+    print(f"Compte par défaut défini: {uid}")
+
 
 def cmd_balances(args: argparse.Namespace) -> None:
     """
     GET /accounts/{uid}/balances
     """
-    if not args.account_uid:
-        _die("--account-uid est requis")
+    uid = args.account_uid or _get_default_account_uid()
+    if not uid:
+        _die("Aucun UID fourni. Fournissez --account-uid ou définissez un compte par défaut (set-default-account), ou assurez-vous qu'un seul compte est en cache.")
 
-    path = f"/accounts/{args.account_uid}/balances"
+    path = f"/accounts/{uid}/balances"
     resp = _request("GET", path)
     if resp.status_code != 200:
         _die(f"Echec {path} ({resp.status_code}): {resp.text}")
@@ -259,8 +300,9 @@ def cmd_transactions(args: argparse.Namespace) -> None:
     """
     GET /accounts/{uid}/transactions?date_from=YYYY-MM-DD (+ continuation_key)
     """
-    if not args.account_uid:
-        _die("--account-uid est requis")
+    uid = args.account_uid or _get_default_account_uid()
+    if not uid:
+        _die("Aucun UID fourni. Fournissez --account-uid ou définissez un compte par défaut (set-default-account), ou assurez-vous qu'un seul compte est en cache.")
     if not args.date_from:
         _die("--date-from est requis (format YYYY-MM-DD)")
     # Validation stricte du format de date
@@ -269,7 +311,7 @@ def cmd_transactions(args: argparse.Namespace) -> None:
     except ValueError:
         _die("--date-from doit être au format YYYY-MM-DD")
 
-    path = f"/accounts/{args.account_uid}/transactions"
+    path = f"/accounts/{uid}/transactions"
     params = {"date_from": args.date_from}
     all_tx = []
 
@@ -295,12 +337,67 @@ def cmd_transactions(args: argparse.Namespace) -> None:
 # ----------------------------
 # Entrée CLI
 # ----------------------------
+def cmd_check_setup(_: argparse.Namespace) -> None:
+    """Validation locale: variables d'env, clé privée PEM, JWT généré."""
+    info: Dict[str, Any] = {}
+
+    # Python / Env
+    info["python_version"] = sys.version.split()[0]
+    info["api_base"] = API_BASE
+    info["audience"] = _audience_from_api_base()
+    info["enable_app_id_present"] = bool(APP_ID)
+    info["enable_app_id_preview"] = (APP_ID[:8] + "...") if APP_ID else None
+    info["private_key_path_present"] = bool(PRIVATE_KEY_PATH)
+
+    # Clé privée
+    key_stat: Dict[str, Any] = {}
+    if PRIVATE_KEY_PATH:
+        try:
+            with open(PRIVATE_KEY_PATH, "rb") as f:
+                content = f.read()
+            key_stat["readable"] = True
+            key_stat["bytes"] = len(content)
+            head = content[:64]
+            # Détection grossière du type de PEM
+            text_head = head.decode("utf-8", errors="ignore")
+            if "BEGIN RSA PRIVATE KEY" in text_head:
+                key_stat["pem_type"] = "RSA PRIVATE KEY"
+            elif "BEGIN PRIVATE KEY" in text_head:
+                key_stat["pem_type"] = "PRIVATE KEY (PKCS#8)"
+            else:
+                key_stat["pem_type"] = "unknown"
+        except Exception as e:
+            key_stat["readable"] = False
+            key_stat["error"] = str(e)
+    info["private_key_status"] = key_stat
+
+    # JWT
+    try:
+        token = _build_jwt()
+        # En-têtes non signés
+        header = jwt.get_unverified_header(token)
+        # Claims sans vérification (pas de secret ici)
+        claims = jwt.decode(token, options={"verify_signature": False})
+        # Durée de validité
+        now = int(time.time())
+        exp = int(claims.get("exp", now))
+        info["jwt"] = {
+            "header": header,
+            "claims": claims,
+            "seconds_until_expiry": max(0, exp - now),
+        }
+    except Exception as e:
+        info["jwt_error"] = str(e)
+
+    _print_json(info)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="enable-budget CLI (lecture seule: soldes & transactions)"
     )
     parser.add_argument("--api-base", help="Override de l'API base URL (ex: https://api.enablebanking.com)")
+    parser.add_argument("--debug", action="store_true", help="Active le mode debug (logs HTTP et contexte)")
     sub = parser.add_subparsers(dest="command")
 
     # auth-url
@@ -322,20 +419,33 @@ def main() -> None:
 
     # balances
     p_bal = sub.add_parser("balances", help="Lire les soldes d'un compte")
-    p_bal.add_argument("--account-uid", required=True, help="UID du compte")
+    p_bal.add_argument("--account-uid", help="UID du compte (optionnel si compte par défaut ou unique)")
     p_bal.set_defaults(func=cmd_balances)
 
     # transactions
     p_tx = sub.add_parser("transactions", help="Lire les transactions d'un compte (pagination auto)")
-    p_tx.add_argument("--account-uid", required=True, help="UID du compte")
+    p_tx.add_argument("--account-uid", help="UID du compte (optionnel si compte par défaut ou unique)")
     p_tx.add_argument("--date-from", required=True, help="YYYY-MM-DD")
     p_tx.set_defaults(func=cmd_transactions)
+
+    # set-default-account
+    p_def = sub.add_parser("set-default-account", help="Définir le compte par défaut (utilisé si --account-uid absent)")
+    p_def.add_argument("--account-uid", required=True, help="UID du compte à définir par défaut")
+    p_def.set_defaults(func=cmd_set_default_account)
+
+    # check-setup
+    p_chk = sub.add_parser("check-setup", help="Vérifie la configuration locale (clé PEM, JWT, audience)")
+    p_chk.set_defaults(func=cmd_check_setup)
 
     args = parser.parse_args()
     # Permet de surcharger API_BASE depuis la CLI
     if getattr(args, "api_base", None):
         global API_BASE
         API_BASE = str(args.api_base).rstrip("/")
+    # Debug flag
+    if getattr(args, "debug", False):
+        global DEBUG
+        DEBUG = True
     if not args.command:
         parser.print_help()
         sys.exit(0)

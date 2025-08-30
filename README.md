@@ -33,3 +33,12 @@ python enable_budget_cli.py transactions --account-uid "<uid>" --date-from 2025-
 ## Astuces
 - Vous pouvez surcharger l'URL de l'API par `--api-base https://...` si vous utilisez un autre endpoint que celui par défaut.
 - Le script ajoute automatiquement l'en-tête `X-EnableBanking-Session` s'il trouve un `session_id` dans `.enable_budget_local.json`.
+- `--debug` affiche des informations détaillées (URL, statut HTTP) pour diagnostiquer.
+- Si vous n'indiquez pas `--account-uid`, le script utilisera le compte par défaut (définissable via `set-default-account`) ou, à défaut, le seul compte présent en cache.
+
+## Dépannage rapide
+- Vérifiez les variables d'environnement: `ENABLE_APP_ID`, `ENABLE_PRIVATE_KEY_PATH`, et l'accessibilité du fichier PEM.
+- Assurez-vous d'avoir effectué le parcours de consentement (`auth-url` puis `exchange-code`).
+- Listez les comptes: `python enable_budget_cli.py list-accounts`
+- Définissez un compte par défaut (facultatif): `python enable_budget_cli.py set-default-account --account-uid "<uid>"`
+- Réessayer avec debug: ajouter `--debug` à la commande.
