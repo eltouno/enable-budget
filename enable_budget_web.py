@@ -55,16 +55,22 @@ def _load_private_key() -> str:
         raise RuntimeError(f"Impossible de lire la clé privée .pem: {e}")
 
 
-def _get_access() -> Dict[str, Any]:
+def _get_access(valid_until_iso: str) -> Dict[str, Any]:
     # Permettre la configuration via JSON brut
     if ACCESS_JSON:
         try:
-            return json.loads(ACCESS_JSON)
+            obj = json.loads(ACCESS_JSON)
+            if isinstance(obj, dict) and "valid_until" not in obj:
+                obj["valid_until"] = valid_until_iso
+            return obj
         except Exception as e:
             raise RuntimeError(f"ENABLE_ACCESS_JSON invalide: {e}")
     # Valeur par défaut raisonnable: accès balances et transactions pour tous les comptes
-    # Ajustez si votre environnement exige un autre schéma.
-    return {"all_accounts": ["balances", "transactions"]}
+    # et validité côté access (certaines banques l'exigent)
+    return {
+        "valid_until": valid_until_iso,
+        "all_accounts": ["balances", "transactions"],
+    }
 
 
 def _build_jwt() -> str:
@@ -139,7 +145,7 @@ def start_consent():
         "redirect_url": redirect_url,
         "valid_until": valid_until,
         "state": oauth_state,
-        "access": _get_access(),
+        "access": _get_access(valid_until),
     }
     try:
         resp = _request("POST", "/auth", json_body=body)

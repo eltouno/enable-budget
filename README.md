@@ -11,7 +11,9 @@ Une web-app minimaliste est également fournie pour démarrer le consentement, l
   - ENABLE_PRIVATE_KEY_PATH : chemin complet vers votre fichier clé RSA privée au format PEM (ex: `/Users/xxxx/enable_private.pem`)
     - ou bien ENABLE_PRIVATE_KEY : contenu PEM directement (collez la clé, commencant par `-----BEGIN ...`)
   - (optionnel) ENABLE_API_BASE : défaut https://api.enablebanking.com
-  - (optionnel) ENABLE_ACCESS_JSON : JSON brut du champ `access` envoyé à `/auth` (ex: `{ "all_accounts": ["balances", "transactions"] }`)
+  - (optionnel) ENABLE_ACCESS_JSON : JSON brut du champ `access` envoyé à `/auth`.
+    - Par défaut, l'app envoie: `{ "valid_until": "<ISO>", "all_accounts": ["balances", "transactions"] }`
+    - Si vous fournissez votre JSON et qu'il ne contient pas `valid_until`, il sera ajouté automatiquement avec la même valeur que le `valid_until` global.
 
 ## Installation
 python -m venv .venv

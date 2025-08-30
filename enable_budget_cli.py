@@ -196,10 +196,15 @@ def cmd_auth_url(args: argparse.Namespace) -> None:
     if access_json:
         try:
             access = json.loads(access_json)
+            if isinstance(access, dict) and "valid_until" not in access:
+                access["valid_until"] = valid_until
         except Exception as e:
             _die(f"ENABLE_ACCESS_JSON invalide: {e}")
     else:
-        access = {"all_accounts": ["balances", "transactions"]}
+        access = {
+            "valid_until": valid_until,
+            "all_accounts": ["balances", "transactions"],
+        }
 
     body = {
         "aspsp": {
